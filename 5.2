@@ -1,0 +1,120 @@
+
+// server.js
+
+// 1. Import dependencies
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+
+// 2. Initialize Express app
+const app = express();
+app.use(bodyParser.json());
+
+// 3. Connect to MongoDB
+mongoose.connect('mongodb://127.0.0.1:27017/nimbusDB', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// ================= MVC Structure =================
+
+// 4. Model: models/Student.js
+const studentSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    age: { type: Number, required: true, min: 0 },
+    course: { type: String, required: true }
+});
+const Student = mongoose.model('Student', studentSchema);
+
+// 5. Controller: controllers/studentController.js
+const studentController = {
+    createStudent: async (req, res) => {
+        try {
+            const student = new Student(req.body);
+            await student.save();
+            res.status(201).json({ message: 'Student added', student });
+        } catch (err) {
+            res.status(400).json({ error: err.message });
+        }
+    },
+    getAllStudents: async (req, res) => {
+        try {
+            const students = await Student.find();
+            res.json(students);
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    },
+    updateStudent: async (req, res) => {
+        try {
+            const updatedStudent = await Student.findByIdAndUpdate(
+                req.params.id,
+                req.body,
+                { new: true, runValidators: true }
+            );
+            if (!updatedStudent) return res.status(404).json({ error: 'Student not found' });
+            res.json({ message: 'Student updated', student: updatedStudent });
+        } catch (err) {
+            res.status(400).json({ error: err.message });
+        }
+    },
+    deleteStudent: async (req, res) => {
+        try {
+            const deletedStudent = await Student.findByIdAndDelete(req.params.id);
+            if (!deletedStudent) return res.status(404).json({ error: 'Student not found' });
+            res.json({ message: 'Student deleted', student: deletedStudent });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    }
+};
+
+// 6. Routes: routes/studentRoutes.js
+const studentRoutes = express.Router();
+studentRoutes.post('/', studentController.createStudent);
+studentRoutes.get('/', studentController.getAllStudents);
+studentRoutes.put('/:id', studentController.updateStudent);
+studentRoutes.delete('/:id', studentController.deleteStudent);
+
+// 7. Use routes in app
+app.use('/students', studentRoutes);
+
+// 8. Start server
+const PORT = 3000;
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
+/*
+Expected Output Examples:
+
+1. POST /students
+Request Body: { "name": "John Doe", "age": 20, "course": "Computer Science" }
+Response:
+{
+  "message": "Student added",
+  "student": { "_id": "...", "name": "John Doe", "age": 20, "course": "Computer Science", "__v": 0 }
+}
+
+2. GET /students
+Response:
+[
+  { "_id": "...", "name": "John Doe", "age": 20, "course": "Computer Science", "__v": 0 },
+  { "_id": "...", "name": "Jane Smith", "age": 22, "course": "Mathematics", "__v": 0 }
+]
+
+3. PUT /students/:id
+Request Body: { "age": 21 }
+Response:
+{
+  "message": "Student updated",
+  "student": { "_id": "...", "name": "John Doe", "age": 21, "course": "Computer Science", "__v": 0 }
+}
+
+4. DELETE /students/:id
+Response:
+{
+  "message": "Student deleted",
+  "student": { "_id": "...", "name": "Jane Smith", "age": 22, "course": "Mathematics", "__v": 0 }
+}
+*/
